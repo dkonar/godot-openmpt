@@ -12,8 +12,6 @@ Just go to the prebuilt branch and use the download ZIP feature of Github, or us
 
 If you want to take a look at a commit that's more recent, then you can download the addon as a CI build artifact from the Github workflow action.
 
-Unfortunately there are no MacOS, Android, iOS, or any 32-bit binaries currently prebuilt. If you need any of those you will have to build them yourself and add them to the .gdextension file.
-
 ## Documentation
 
 For information on what functions you can use either look at the source code, or look at the in-editor docs for the types `AudioStreamMPT` and `AudioStreamPlaybackMPT`.
@@ -38,7 +36,7 @@ If you're on Windows use the Visual Studio 2022 CMake integration; though you'll
 
 Open the `custom-godotcpp-build` directory in the terminal. Here we'll use CMake with this as the source *and* the binary directory (this is required for the main build script to work).
 
-There is an optional define called `GENERATE_DEBUG_SYMBOLS`, this is the reason we need a custom build script in the first place. 
+There is an optional define called `GENERATE_DEBUG_SYMBOLS`, this is the reason we need a custom build script in the first place.
 If you're developing and ran into an error in godot-cpp OR libopenmpt itself, feel free to turn it on. But if you're just building this for any other reason define it to be `OFF` (`-DGENERATE_DEBUG_SYMBOLS=OFF`).
 Otherwise, the binaries will end up being pretty big (perhaps so big that Github won't even let you push the files anymore!), so use with caution.
 
@@ -70,7 +68,7 @@ After this is done you will have a `.dll` file(s) in the `bin` directory of the 
 
 ### Requirements
 
-You will need `cmake`, either the `gcc` toolchain or the `clang`/`llvm` toolchain (this is actually relatively untested as of the latest buildsystem changes, so it may or may not work with Clang anymore). 
+You will need `cmake`, either the `gcc` toolchain or the `clang`/`llvm` toolchain (this is actually relatively untested as of the latest buildsystem changes, so it may or may not work with Clang anymore).
 Also recommended is `ninja-build` for the build system.
 
 ### The Addon
@@ -92,4 +90,3 @@ You now can play your mod-tracker formats as a regular audio stream (and even ma
 ## Problems?
 
 Open an issue, I'll be happy to take a look. I can't guarantee support though, I'm just a solo hobby developer, but I'm more than willing to take feedback or try to help if I can.
-

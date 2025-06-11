@@ -1,0 +1,247 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+jobs:
+  build:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        include:
+          # Linux x64 builds
+          - os: ubuntu-latest
+            cc: gcc
+            cxx: g++
+            mingw: false
+            platform: linux
+            build-type: Release
+          - os: ubuntu-latest
+            cc: gcc
+            cxx: g++
+            mingw: false
+            platform: linux
+            build-type: Debug
+          # Linux ARM64 builds
+          - os: ubuntu-22.04-arm
+            cc: gcc
+            cxx: g++
+            mingw: false
+            platform: linux-arm64
+            build-type: Release
+          - os: ubuntu-22.04-arm
+            cc: gcc
+            cxx: g++
+            mingw: false
+            platform: linux-arm64
+            build-type: Debug
+          # Windows builds (cross-compiled on Linux)
+          - os: ubuntu-latest
+            cc: x86_64-w64-mingw32-gcc
+            cxx: x86_64-w64-mingw32-g++
+            mingw: true
+            platform: windows
+            build-type: Release
+          - os: ubuntu-latest
+            cc: x86_64-w64-mingw32-gcc
+            cxx: x86_64-w64-mingw32-g++
+            mingw: true
+            platform: windows
+            build-type: Debug
+          # macOS builds
+          - os: macos-latest
+            cc: clang
+            cxx: clang++
+            mingw: false
+            platform: macos
+            build-type: Release
+          - os: macos-latest
+            cc: clang
+            cxx: clang++
+            mingw: false
+            platform: macos
+            build-type: Debug
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Install MinGW
+        if: matrix.mingw == true
+        uses: egor-tensin/setup-mingw@v2.2.0
+        with:
+          cc: 0
+
+      - name: Cache godot-cpp
+        id: cache-godot
+        uses: actions/cache@v4
+        with:
+          path: |
+            ${{ github.workspace }}/godot-cpp/gdextension
+            ${{ github.workspace }}/godot-cpp/include
+            ${{ github.workspace }}/custom-godotcpp-build
+          key: ${{ matrix.cc }}-${{ hashFiles('.gitmodules') }}-${{ matrix.build-type }}-${{ matrix.os }}
+
+      - name: Update submodules
+        if: steps.cache-godot.outputs.cache-hit != 'true'
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install CMake
+        uses: lukka/get-cmake@latest
+
+      - name: Build godot-cpp
+        if: steps.cache-godot.outputs.cache-hit != 'true' && matrix.mingw != true
+        uses: ashutoshvarma/action-cmake-build@master
+        with:
+          source-dir: ${{ github.workspace }}/custom-godotcpp-build
+          build-dir: ${{ github.workspace }}/custom-godotcpp-build
+          cc: ${{ matrix.cc }}
+          cxx: ${{ matrix.cxx }}
+          configure-options: -G Ninja -DGENERATE_DEBUG_SYMBOLS=OFF
+          build-type: ${{ matrix.build-type }}
+
+      - name: Build godot-cpp MinGW
+        if: steps.cache-godot.outputs.cache-hit != 'true' && matrix.mingw == true
+        uses: ashutoshvarma/action-cmake-build@master
+        with:
+          source-dir: ${{ github.workspace }}/custom-godotcpp-build
+          build-dir: ${{ github.workspace }}/custom-godotcpp-build
+          cc: ${{ matrix.cc }}
+          cxx: ${{ matrix.cxx }}
+          configure-options: -DGENERATE_DEBUG_SYMBOLS=OFF -DCMAKE_SYSTEM_NAME=Windows -DCMAKE_FIND_ROOT_PATH=/usr/x86_64-w64-mingw32 -DCMAKE_FIND_ROOT_PATH_MODE_PROGRAM=NEVER -DCMAKE_FIND_ROOT_PATH_MODE_LIBRARY=ONLY -DCMAKE_FIND_ROOT_PATH_MODE_INCLUDE=ONLY -G Ninja
+          build-type: ${{ matrix.build-type }}
+
+      - name: Build with CMake
+        if: matrix.mingw != true
+        uses: ashutoshvarma/action-cmake-build@master
+        with:
+          build-dir: ${{ github.workspace }}/build
+          cc: ${{ matrix.cc }}
+          cxx: ${{ matrix.cxx }}
+          configure-options: -G Ninja
+          build-type: ${{ matrix.build-type }}
+
+      - name: Build with CMake MinGW
+        if: matrix.mingw == true
+        uses: ashutoshvarma/action-cmake-build@master
+        with:
+          build-dir: ${{ github.workspace }}/build
+          cc: ${{ matrix.cc }}
+          cxx: ${{ matrix.cxx }}
+          configure-options: -DCMAKE_SYSTEM_NAME=Windows -DCMAKE_FIND_ROOT_PATH=/usr/x86_64-w64-mingw32 -DCMAKE_FIND_ROOT_PATH_MODE_PROGRAM=NEVER -DCMAKE_FIND_ROOT_PATH_MODE_LIBRARY=ONLY -DCMAKE_FIND_ROOT_PATH_MODE_INCLUDE=ONLY -G Ninja
+          build-type: ${{ matrix.build-type }}
+
+      - name: Upload Built Library Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          path: ${{ github.workspace }}/addons/godot-openmpt/bin/*
+          name: bin-${{ matrix.platform }}-${{ matrix.build-type }}
+
+  package-and-release:
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Extract Linux Debug
+        uses: actions/download-artifact@v4
+        with:
+          name: bin-linux-Debug
+          path: ${{ github.workspace }}/addons/godot-openmpt/bin
+
+      - name: Extract Linux ARM64 Debug
+        uses: actions/download-artifact@v4
+        with:
+          name: bin-linux-arm64-Debug
+          path: ${{ github.workspace }}/addons/godot-openmpt/bin
+
+      - name: Extract Windows Debug
+        uses: actions/download-artifact@v4
+        with:
+          name: bin-windows-Debug
+          path: ${{ github.workspace }}/addons/godot-openmpt/bin
+
+      - name: Extract macOS Debug
+        uses: actions/download-artifact@v4
+        with:
+          name: bin-macos-Debug
+          path: ${{ github.workspace }}/addons/godot-openmpt/bin
+
+      - name: Extract Linux Release
+        uses: actions/download-artifact@v4
+        with:
+          name: bin-linux-Release
+          path: ${{ github.workspace }}/addons/godot-openmpt/bin
+
+      - name: Extract Linux ARM64 Release
+        uses: actions/download-artifact@v4
+        with:
+          name: bin-linux-arm64-Release
+          path: ${{ github.workspace }}/addons/godot-openmpt/bin
+
+      - name: Extract Windows Release
+        uses: actions/download-artifact@v4
+        with:
+          name: bin-windows-Release
+          path: ${{ github.workspace }}/addons/godot-openmpt/bin
+
+      - name: Extract macOS Release
+        uses: actions/download-artifact@v4
+        with:
+          name: bin-macos-Release
+          path: ${{ github.workspace }}/addons/godot-openmpt/bin
+
+      - name: List built binaries
+        run: |
+          echo "Built binaries:"
+          ls -la ${{ github.workspace }}/addons/godot-openmpt/bin/
+
+      - name: Package addon
+        run: |
+          cd ${{ github.workspace }}
+          tar -czf godot-openmpt-${{ github.ref_name }}.tar.gz addons/
+          zip -r godot-openmpt-${{ github.ref_name }}.zip addons/
+
+      - name: Generate changelog
+        id: changelog
+        run: |
+          echo "changelog<<EOF" >> $GITHUB_OUTPUT
+          echo "# Godot OpenMPT ${{ github.ref_name }}" >> $GITHUB_OUTPUT
+          echo "" >> $GITHUB_OUTPUT
+          echo "## What's New" >> $GITHUB_OUTPUT
+          echo "- Added ARM64 Linux support" >> $GITHUB_OUTPUT
+          echo "- Added macOS support (x86_64 and ARM64/Apple Silicon)" >> $GITHUB_OUTPUT
+          echo "- Updated plugin version to 1.4" >> $GITHUB_OUTPUT
+          echo "" >> $GITHUB_OUTPUT
+          echo "## Supported Platforms" >> $GITHUB_OUTPUT
+          echo "- Windows (x86_64)" >> $GITHUB_OUTPUT
+          echo "- Linux (x86_64)" >> $GITHUB_OUTPUT
+          echo "- Linux (ARM64) - **NEW!**" >> $GITHUB_OUTPUT
+          echo "- macOS (x86_64/ARM64) - **NEW!**" >> $GITHUB_OUTPUT
+          echo "" >> $GITHUB_OUTPUT
+          echo "## Installation" >> $GITHUB_OUTPUT
+          echo "1. Download the \`godot-openmpt-${{ github.ref_name }}.zip\` file" >> $GITHUB_OUTPUT
+          echo "2. Extract it to your Godot project directory" >> $GITHUB_OUTPUT
+          echo "3. Enable the plugin in Project Settings > Plugins" >> $GITHUB_OUTPUT
+          echo "" >> $GITHUB_OUTPUT
+          echo "## Binary Information" >> $GITHUB_OUTPUT
+          echo "\`\`\`" >> $GITHUB_OUTPUT
+          ls -la ${{ github.workspace }}/addons/godot-openmpt/bin/ >> $GITHUB_OUTPUT
+          echo "\`\`\`" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: "Godot OpenMPT ${{ github.ref_name }}"
+          body: ${{ steps.changelog.outputs.changelog }}
+          files: |
+            godot-openmpt-${{ github.ref_name }}.tar.gz
+            godot-openmpt-${{ github.ref_name }}.zip
+          draft: false
+          prerelease: false
