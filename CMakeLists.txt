@@ -136,11 +136,11 @@ set_property(TARGET ${PROJECT_NAME} APPEND_STRING PROPERTY LINK_FLAGS ${GODOT_LI
 set_property(TARGET libopenmpt APPEND_STRING PROPERTY LINK_FLAGS ${GODOT_LINKER_FLAGS})
 
 if(NOT "${CMAKE_CXX_COMPILER_ID}" STREQUAL "MSVC" AND CMAKE_BUILD_TYPE MATCHES Debug)
-	
 
-	# Only generate debug symbols for the main extension... NOT libopenmpt. 
-	# Otherwise the binary sizes will be out of control. 
-	# Comment this out and compile if you really need to debug what libopenmpt is doing 
+
+	# Only generate debug symbols for the main extension... NOT libopenmpt.
+	# Otherwise the binary sizes will be out of control.
+	# Comment this out and compile if you really need to debug what libopenmpt is doing
 	# (you probably don't)
 	#set_property(TARGET libopenmpt APPEND_STRING PROPERTY COMPILE_FLAGS "-fno-omit-frame-pointer -O0 -g")
 	set_property(TARGET libopenmpt APPEND_STRING PROPERTY COMPILE_FLAGS " -O3") # If we don't want debug symbols, may as well -O3
@@ -155,6 +155,14 @@ set(BITS .32)
 if(CMAKE_SIZEOF_VOID_P EQUAL 8)
 	set(BITS .64)
 endif(CMAKE_SIZEOF_VOID_P EQUAL 8)
+
+# Detect architecture for ARM builds
+set(ARCH_SUFFIX "")
+if(CMAKE_SYSTEM_PROCESSOR MATCHES "^(aarch64|arm64)")
+	set(ARCH_SUFFIX "arm64")
+elseif(CMAKE_SYSTEM_PROCESSOR MATCHES "^arm")
+	set(ARCH_SUFFIX "arm")
+endif()
 
 if(CMAKE_BUILD_TYPE MATCHES Debug)
 	set(GODOT_CPP_BUILD_TYPE Debug)
@@ -171,6 +179,8 @@ if(ANDROID)
 	set(BITS "")
 endif()
 
+
+
 target_link_directories(${PROJECT_NAME}
 	PRIVATE
 		${GODOT_LIB_PATH}
@@ -181,7 +191,14 @@ target_link_libraries(${PROJECT_NAME}
 	libopenmpt
 )
 
-set(MAIN_EXT_OUTPUT_NAME libgdmpt-${SYSTEM_NAME}.${BUILD_TYPE}${BITS})
+# Handle architecture-specific naming to match gdextension file
+if(NOT "${ARCH_SUFFIX}" STREQUAL "")
+	# For ARM builds: libgdmpt-linux.debug.arm64.so
+	set(MAIN_EXT_OUTPUT_NAME libgdmpt-${SYSTEM_NAME}.${BUILD_TYPE}.${ARCH_SUFFIX})
+else()
+	# For x86_64 builds: libgdmpt-linux.debug.64.so
+	set(MAIN_EXT_OUTPUT_NAME libgdmpt-${SYSTEM_NAME}.${BUILD_TYPE}${BITS})
+endif()
 set_property(TARGET ${PROJECT_NAME} PROPERTY OUTPUT_NAME ${MAIN_EXT_OUTPUT_NAME})
 
 add_custom_command(
@@ -191,4 +208,3 @@ add_custom_command(
     COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_SOURCE_DIR}/addons/godot-openmpt ${EXAMPLE_DIR}/addons/godot-openmpt
 	DEPENDS $<TARGETFILE:${PROJECT_NAME}>
 )
-

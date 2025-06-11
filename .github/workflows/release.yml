@@ -215,7 +215,7 @@ jobs:
           echo "## What's New" >> $GITHUB_OUTPUT
           echo "- Added ARM64 Linux support" >> $GITHUB_OUTPUT
           echo "- Added macOS support (x86_64 and ARM64/Apple Silicon)" >> $GITHUB_OUTPUT
-          echo "- Updated plugin version to 1.4" >> $GITHUB_OUTPUT
+          echo "- Updated plugin version to 1.3.0" >> $GITHUB_OUTPUT
           echo "" >> $GITHUB_OUTPUT
           echo "## Supported Platforms" >> $GITHUB_OUTPUT
           echo "- Windows (x86_64)" >> $GITHUB_OUTPUT
