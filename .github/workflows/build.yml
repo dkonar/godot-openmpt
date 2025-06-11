@@ -38,18 +38,18 @@ jobs:
       with:
         cc: 0
     
-    - name: Restore godot-cpp
-      id: cache-godot-restore
+    - name: Cache godot-cpp
+      id: cache-godot
       uses: actions/cache@v4
       with:
         path: |
           ${{ github.workspace }}/godot-cpp/gdextension
           ${{ github.workspace }}/godot-cpp/include
           ${{ github.workspace }}/custom-godotcpp-build
-        key: ${{ matrix.compilers.cc }}-${{ hashFiles('.gitmodules') }}-${{ matrix.build-type }}
+        key: ${{ matrix.compilers.cc }}-${{ hashFiles('.gitmodules') }}-${{ matrix.build-type }}-${{ matrix.os }}
 
     - name: Update submodules
-      if: steps.cache-godot-restore.outputs.cache-hit != 'true'
+      if: steps.cache-godot.outputs.cache-hit != 'true'
       uses: actions/checkout@v4
       with:
         submodules: recursive
@@ -58,7 +58,7 @@ jobs:
       uses: lukka/get-cmake@latest
 
     - name: Build godot-cpp
-      if: steps.cache-godot-restore.outputs.cache-hit != 'true' && matrix.compilers.mingw != 'true'
+      if: steps.cache-godot.outputs.cache-hit != 'true' && matrix.compilers.mingw != 'true'
       uses: ashutoshvarma/action-cmake-build@master
       with:
         source-dir: ${{ github.workspace }}/custom-godotcpp-build
@@ -69,7 +69,7 @@ jobs:
         build-type: ${{ matrix.build-type }}
 
     - name: Build godot-cpp MinGW
-      if: steps.cache-godot-restore.outputs.cache-hit != 'true' && matrix.compilers.mingw == 'true'
+      if: steps.cache-godot.outputs.cache-hit != 'true' && matrix.compilers.mingw == 'true'
       uses: ashutoshvarma/action-cmake-build@master
       with:
         source-dir: ${{ github.workspace }}/custom-godotcpp-build
@@ -78,16 +78,6 @@ jobs:
         cxx: ${{ matrix.compilers.cxx }}
         configure-options: -DGENERATE_DEBUG_SYMBOLS=OFF -DCMAKE_SYSTEM_NAME=Windows -DCMAKE_FIND_ROOT_PATH=/usr/x86_64-w64-mingw32 -DCMAKE_FIND_ROOT_PATH_MODE_PROGRAM=NEVER -DCMAKE_FIND_ROOT_PATH_MODE_LIBRARY=ONLY -DCMAKE_FIND_ROOT_PATH_MODE_INCLUDE=ONLY -G Ninja
         build-type: ${{ matrix.build-type }}
-
-    - name: Save godot-cpp
-      id: cache-godot-save
-      uses: actions/cache@v4
-      with:
-        path: |
-          ${{ github.workspace }}/godot-cpp/gdextension
-          ${{ github.workspace }}/godot-cpp/include
-          ${{ github.workspace }}/custom-godotcpp-build
-        key: ${{ steps.cache-godot-restore.outputs.cache-primary-key }}
 
     - name: Build with CMake
       if: matrix.compilers.mingw != 'true'
