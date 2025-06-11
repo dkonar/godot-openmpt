@@ -14,26 +14,65 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [ubuntu-latest, macos-latest]
-        build-type: [Release, Debug]
-        compilers: [ 
-          { cc: "gcc", cxx: "g++", mingw: 'false', platform: 'linux' }, 
-          { cc: "clang", cxx: "clang++", mingw: 'false', platform: 'macos' },
-          { cc: "x86_64-w64-mingw32-gcc", cxx: "x86_64-w64-mingw32-g++", mingw: 'true', platform: 'windows' } 
-        ]
-        exclude:
-          - os: macos-latest
-            compilers: { cc: "gcc", cxx: "g++", mingw: 'false', platform: 'linux' }
-          - os: macos-latest
-            compilers: { cc: "x86_64-w64-mingw32-gcc", cxx: "x86_64-w64-mingw32-g++", mingw: 'true', platform: 'windows' }
+        include:
+          # Linux x64 builds
           - os: ubuntu-latest
-            compilers: { cc: "clang", cxx: "clang++", mingw: 'false', platform: 'macos' }
+            cc: gcc
+            cxx: g++
+            mingw: false
+            platform: linux
+            build-type: Release
+          - os: ubuntu-latest
+            cc: gcc
+            cxx: g++
+            mingw: false
+            platform: linux
+            build-type: Debug
+          # Linux ARM64 builds  
+          - os: ubuntu-22.04-arm
+            cc: gcc
+            cxx: g++
+            mingw: false
+            platform: linux-arm64
+            build-type: Release
+          - os: ubuntu-22.04-arm
+            cc: gcc
+            cxx: g++
+            mingw: false
+            platform: linux-arm64
+            build-type: Debug
+          # Windows builds (cross-compiled on Linux)
+          - os: ubuntu-latest
+            cc: x86_64-w64-mingw32-gcc
+            cxx: x86_64-w64-mingw32-g++
+            mingw: true
+            platform: windows
+            build-type: Release
+          - os: ubuntu-latest
+            cc: x86_64-w64-mingw32-gcc
+            cxx: x86_64-w64-mingw32-g++
+            mingw: true
+            platform: windows
+            build-type: Debug
+          # macOS builds
+          - os: macos-latest
+            cc: clang
+            cxx: clang++
+            mingw: false
+            platform: macos
+            build-type: Release
+          - os: macos-latest
+            cc: clang
+            cxx: clang++
+            mingw: false
+            platform: macos
+            build-type: Debug
     steps:
     - name: Checkout Repository
       uses: actions/checkout@v4
     
     - name: Install MinGW
-      if: matrix.compilers.mingw == 'true'
+      if: matrix.mingw == true
       uses: egor-tensin/setup-mingw@v2.2.0
       with:
         cc: 0
@@ -46,7 +85,7 @@ jobs:
           ${{ github.workspace }}/godot-cpp/gdextension
           ${{ github.workspace }}/godot-cpp/include
           ${{ github.workspace }}/custom-godotcpp-build
-        key: ${{ matrix.compilers.cc }}-${{ hashFiles('.gitmodules') }}-${{ matrix.build-type }}-${{ matrix.os }}
+        key: ${{ matrix.cc }}-${{ hashFiles('.gitmodules') }}-${{ matrix.build-type }}-${{ matrix.os }}
 
     - name: Update submodules
       if: steps.cache-godot.outputs.cache-hit != 'true'
@@ -58,44 +97,44 @@ jobs:
       uses: lukka/get-cmake@latest
 
     - name: Build godot-cpp
-      if: steps.cache-godot.outputs.cache-hit != 'true' && matrix.compilers.mingw != 'true'
+      if: steps.cache-godot.outputs.cache-hit != 'true' && matrix.mingw != true
       uses: ashutoshvarma/action-cmake-build@master
       with:
         source-dir: ${{ github.workspace }}/custom-godotcpp-build
         build-dir: ${{ github.workspace }}/custom-godotcpp-build
-        cc: ${{ matrix.compilers.cc }}
-        cxx: ${{ matrix.compilers.cxx }}
+        cc: ${{ matrix.cc }}
+        cxx: ${{ matrix.cxx }}
         configure-options: -G Ninja
         build-type: ${{ matrix.build-type }}
 
     - name: Build godot-cpp MinGW
-      if: steps.cache-godot.outputs.cache-hit != 'true' && matrix.compilers.mingw == 'true'
+      if: steps.cache-godot.outputs.cache-hit != 'true' && matrix.mingw == true
       uses: ashutoshvarma/action-cmake-build@master
       with:
         source-dir: ${{ github.workspace }}/custom-godotcpp-build
         build-dir: ${{ github.workspace }}/custom-godotcpp-build
-        cc: ${{ matrix.compilers.cc }}
-        cxx: ${{ matrix.compilers.cxx }}
+        cc: ${{ matrix.cc }}
+        cxx: ${{ matrix.cxx }}
         configure-options: -DGENERATE_DEBUG_SYMBOLS=OFF -DCMAKE_SYSTEM_NAME=Windows -DCMAKE_FIND_ROOT_PATH=/usr/x86_64-w64-mingw32 -DCMAKE_FIND_ROOT_PATH_MODE_PROGRAM=NEVER -DCMAKE_FIND_ROOT_PATH_MODE_LIBRARY=ONLY -DCMAKE_FIND_ROOT_PATH_MODE_INCLUDE=ONLY -G Ninja
         build-type: ${{ matrix.build-type }}
 
     - name: Build with CMake
-      if: matrix.compilers.mingw != 'true'
+      if: matrix.mingw != true
       uses: ashutoshvarma/action-cmake-build@master
       with:
         build-dir: ${{ github.workspace }}/build
-        cc: ${{ matrix.compilers.cc }}
-        cxx: ${{ matrix.compilers.cxx }}
+        cc: ${{ matrix.cc }}
+        cxx: ${{ matrix.cxx }}
         configure-options: -G Ninja
         build-type: ${{ matrix.build-type }}
 
     - name: Build with CMake MinGW
-      if: matrix.compilers.mingw == 'true'
+      if: matrix.mingw == true
       uses: ashutoshvarma/action-cmake-build@master
       with:
         build-dir: ${{ github.workspace }}/build
-        cc: ${{ matrix.compilers.cc }}
-        cxx: ${{ matrix.compilers.cxx }}
+        cc: ${{ matrix.cc }}
+        cxx: ${{ matrix.cxx }}
         configure-options: -DCMAKE_SYSTEM_NAME=Windows -DCMAKE_FIND_ROOT_PATH=/usr/x86_64-w64-mingw32 -DCMAKE_FIND_ROOT_PATH_MODE_PROGRAM=NEVER -DCMAKE_FIND_ROOT_PATH_MODE_LIBRARY=ONLY -DCMAKE_FIND_ROOT_PATH_MODE_INCLUDE=ONLY -G Ninja
         build-type: ${{ matrix.build-type }}
     
@@ -103,7 +142,7 @@ jobs:
       uses: actions/upload-artifact@v4
       with:
         path: ${{ github.workspace }}/addons/godot-openmpt/bin/*
-        name: bin-${{ matrix.compilers.platform }}-${{ matrix.build-type }}
+        name: bin-${{ matrix.platform }}-${{ matrix.build-type }}
 
   package:
     runs-on: ubuntu-latest
@@ -117,6 +156,13 @@ jobs:
       continue-on-error: ${{ env.ACT && 'true' || 'false' }}
       with:
         name: bin-linux-Debug
+        path: ${{ github.workspace }}/addons/godot-openmpt/bin
+    
+    - name: Extract Linux ARM64 Debug
+      uses: actions/download-artifact@v4
+      continue-on-error: ${{ env.ACT && 'true' || 'false' }}
+      with:
+        name: bin-linux-arm64-Debug
         path: ${{ github.workspace }}/addons/godot-openmpt/bin
     
     - name: Extract Windows Debug
@@ -138,6 +184,13 @@ jobs:
       continue-on-error: ${{ env.ACT && 'true' || 'false' }}
       with:
         name: bin-linux-Release
+        path: ${{ github.workspace }}/addons/godot-openmpt/bin
+    
+    - name: Extract Linux ARM64 Release
+      uses: actions/download-artifact@v4
+      continue-on-error: ${{ env.ACT && 'true' || 'false' }}
+      with:
+        name: bin-linux-arm64-Release
         path: ${{ github.workspace }}/addons/godot-openmpt/bin
     
     - name: Extract Windows Release
