@@ -192,11 +192,20 @@ target_link_libraries(${PROJECT_NAME}
 )
 
 # Handle architecture-specific naming to match gdextension file
-if(NOT "${ARCH_SUFFIX}" STREQUAL "")
-	# For ARM builds: libgdmpt-linux.debug.arm64.so
+if(CMAKE_SYSTEM_NAME MATCHES "Darwin")
+	# For macOS: use architecture-specific naming to match updated gdextension file
+	if(NOT "${ARCH_SUFFIX}" STREQUAL "")
+		# ARM64 macOS: libgdmpt-darwin.debug.arm64.dylib
+		set(MAIN_EXT_OUTPUT_NAME libgdmpt-${SYSTEM_NAME}.${BUILD_TYPE}.${ARCH_SUFFIX})
+	else()
+		# Intel macOS: libgdmpt-darwin.debug.64.dylib
+		set(MAIN_EXT_OUTPUT_NAME libgdmpt-${SYSTEM_NAME}.${BUILD_TYPE}${BITS})
+	endif()
+elseif(NOT "${ARCH_SUFFIX}" STREQUAL "")
+	# For ARM builds on other platforms: libgdmpt-linux.debug.arm64.so
 	set(MAIN_EXT_OUTPUT_NAME libgdmpt-${SYSTEM_NAME}.${BUILD_TYPE}.${ARCH_SUFFIX})
 else()
-	# For x86_64 builds: libgdmpt-linux.debug.64.so
+	# For x86_64 builds on other platforms: libgdmpt-linux.debug.64.so
 	set(MAIN_EXT_OUTPUT_NAME libgdmpt-${SYSTEM_NAME}.${BUILD_TYPE}${BITS})
 endif()
 set_property(TARGET ${PROJECT_NAME} PROPERTY OUTPUT_NAME ${MAIN_EXT_OUTPUT_NAME})
