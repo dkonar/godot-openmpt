@@ -99,17 +99,22 @@ if ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "MSVC")
 	set(GODOT_COMPILE_FLAGS "${GODOT_COMPILE_FLAGS} /wd4244 /wd4305 /wd4101 /wd4018 /wd4267")
 
 	# libopenmpt compiler definitions
-	target_compile_definitions(libopenmpt
-		PRIVATE
-			MPT_BUILD_MSVC
-			WIN32
-			NOMINMAX
-			_CRT_NONSTDC_NO_WARNINGS
-			_CRT_SECURE_NO_WARNINGS
-			_CRT_SECURE_CPP_OVERLOAD_STANDARD_NAMES=1
-			_CRT_SECURE_CPP_OVERLOAD_STANDARD_NAMES_COUNT=1
-			_WIN32_WINNT=0x0A00
-			NTDDI_VERSION=0x0A00000A)
+		target_compile_definitions(libopenmpt
+			PRIVATE
+				MPT_BUILD_MSVC
+				WIN32
+				NOMINMAX
+				_CRT_NONSTDC_NO_WARNINGS
+				_CRT_SECURE_NO_WARNINGS
+				_CRT_SECURE_CPP_OVERLOAD_STANDARD_NAMES=1
+				_CRT_SECURE_CPP_OVERLOAD_STANDARD_NAMES_COUNT=1
+				_WIN32_WINNT=0x0A00
+				NTDDI_VERSION=0x0A00000A)
+	elseif(CMAKE_SYSTEM_NAME MATCHES "Darwin")
+		# macOS specific definitions for libopenmpt
+		target_compile_definitions(libopenmpt
+			PRIVATE
+				MPT_BUILD_CLANG)
 else()
 	# STOP adding -g when I DON'T WANT -g!!!
 	set(CMAKE_CXX_FLAGS_DEBUG "")
@@ -123,6 +128,16 @@ else()
 	endif()
 
 	set(GODOT_COMPILE_FLAGS "-fPIC -flto -fvisibility=hidden -fvisibility-inlines-hidden -ffunction-sections -fdata-sections -fexceptions -frtti -pthread")
+
+	# macOS specific flags
+	if(CMAKE_SYSTEM_NAME MATCHES "Darwin")
+		# Ensure proper deployment target for compatibility
+		set(GODOT_COMPILE_FLAGS "${GODOT_COMPILE_FLAGS} -mmacosx-version-min=10.15")
+		# ARM64 specific optimizations
+		if(ARCH_SUFFIX STREQUAL "arm64")
+			set(GODOT_COMPILE_FLAGS "${GODOT_COMPILE_FLAGS} -mcpu=apple-a14")
+		endif()
+	endif()
 
 	if(NOT CMAKE_BUILD_TYPE MATCHES Debug)
 		set(GODOT_COMPILE_FLAGS "${GODOT_COMPILE_FLAGS} -O3")
@@ -158,10 +173,19 @@ endif(CMAKE_SIZEOF_VOID_P EQUAL 8)
 
 # Detect architecture for ARM builds
 set(ARCH_SUFFIX "")
+message(STATUS "CMAKE_SYSTEM_PROCESSOR: ${CMAKE_SYSTEM_PROCESSOR}")
+message(STATUS "CMAKE_OSX_ARCHITECTURES: ${CMAKE_OSX_ARCHITECTURES}")
 if(CMAKE_SYSTEM_PROCESSOR MATCHES "^(aarch64|arm64)")
 	set(ARCH_SUFFIX "arm64")
+	message(STATUS "Detected ARM64 architecture")
 elseif(CMAKE_SYSTEM_PROCESSOR MATCHES "^arm")
 	set(ARCH_SUFFIX "arm")
+	message(STATUS "Detected ARM architecture")
+elseif(CMAKE_OSX_ARCHITECTURES MATCHES "arm64")
+	set(ARCH_SUFFIX "arm64")
+	message(STATUS "Detected ARM64 via CMAKE_OSX_ARCHITECTURES")
+else()
+	message(STATUS "Using default x64 architecture")
 endif()
 
 if(CMAKE_BUILD_TYPE MATCHES Debug)
@@ -197,9 +221,11 @@ if(CMAKE_SYSTEM_NAME MATCHES "Darwin")
 	if(NOT "${ARCH_SUFFIX}" STREQUAL "")
 		# ARM64 macOS: libgdmpt-darwin.debug.arm64.dylib
 		set(MAIN_EXT_OUTPUT_NAME libgdmpt-${SYSTEM_NAME}.${BUILD_TYPE}.${ARCH_SUFFIX})
+		message(STATUS "macOS ARM64 output name: ${MAIN_EXT_OUTPUT_NAME}")
 	else()
 		# Intel macOS: libgdmpt-darwin.debug.64.dylib
 		set(MAIN_EXT_OUTPUT_NAME libgdmpt-${SYSTEM_NAME}.${BUILD_TYPE}${BITS})
+		message(STATUS "macOS Intel output name: ${MAIN_EXT_OUTPUT_NAME}")
 	endif()
 elseif(NOT "${ARCH_SUFFIX}" STREQUAL "")
 	# For ARM builds on other platforms: libgdmpt-linux.debug.arm64.so
@@ -209,6 +235,7 @@ else()
 	set(MAIN_EXT_OUTPUT_NAME libgdmpt-${SYSTEM_NAME}.${BUILD_TYPE}${BITS})
 endif()
 set_property(TARGET ${PROJECT_NAME} PROPERTY OUTPUT_NAME ${MAIN_EXT_OUTPUT_NAME})
+message(STATUS "Final output name: ${MAIN_EXT_OUTPUT_NAME}")
 
 add_custom_command(
 	TARGET ${PROJECT_NAME} POST_BUILD

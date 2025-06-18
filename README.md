@@ -24,6 +24,36 @@ In theory, all of them. In practice building for certain platforms sucks and so 
 
 As for mobile platforms, I haven't tested them either because I don't make mobile games and iOS has a lot of the same issues as MacOS does (don't have an iPhone either). Android should probably work, but it hasn't been tested. (Just like with MacOS open an issue if you run into any problems)
 
+## M1/Apple Silicon Compatibility
+
+If you're using the pre-built binaries on Apple Silicon (M1/M2) Macs and experiencing crashes or the plugin not loading, this is likely due to dynamic library linking issues in the universal binaries. The addon includes a fix script to resolve these issues:
+
+### Automatic Fix (Recommended)
+
+The build process now automatically applies M1 compatibility fixes during CI/CD. If you're downloading from releases or CI artifacts, the binaries should work out of the box.
+
+### Manual Fix (If needed)
+
+If you're still experiencing issues, you can manually run the compatibility fix:
+
+```bash
+# Make the script executable (if not already)
+chmod +x fix-m1-compatibility.sh
+
+# Run the fix on your addon
+./fix-m1-compatibility.sh path/to/your/project/addons/godot-openmpt
+```
+
+The script will:
+- Fix install names to use proper relative paths
+- Remove problematic build system rpaths
+- Ensure proper linking for both Intel and ARM64 architectures
+- Create backups of original binaries
+
+### What causes the M1 issue?
+
+The issue stems from how universal binaries are created during the build process. The individual Intel and ARM64 binaries may have hardcoded paths or incorrect install names that work on the build system but fail on end-user machines. This is particularly problematic on M1 Macs where the dynamic linker is more strict about library loading.
+
 ## How to build
 
 This project uses CMake so it's recommended to use that (even for building godot-cpp as the library names are different and I had issues mixing SCons and CMake before).
@@ -90,3 +120,14 @@ You now can play your mod-tracker formats as a regular audio stream (and even ma
 ## Problems?
 
 Open an issue, I'll be happy to take a look. I can't guarantee support though, I'm just a solo hobby developer, but I'm more than willing to take feedback or try to help if I can.
+
+### Common Issues
+
+**M1 Mac: Plugin not loading or crashing**
+- Try running the M1 compatibility fix script (see M1/Apple Silicon Compatibility section above)
+- Make sure you're using the universal binaries from the latest release
+
+**Build issues on macOS**
+- Ensure you have Xcode command line tools installed: `xcode-select --install`
+- Make sure CMake is properly detecting your architecture
+- Check that all submodules are properly initialized: `git submodule update --init --recursive`

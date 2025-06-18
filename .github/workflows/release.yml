@@ -113,7 +113,7 @@ jobs:
           build-dir: ${{ github.workspace }}/custom-godotcpp-build
           cc: ${{ matrix.cc }}
           cxx: ${{ matrix.cxx }}
-          configure-options: -G Ninja -DGENERATE_DEBUG_SYMBOLS=OFF
+          configure-options: -G Ninja -DGENERATE_DEBUG_SYMBOLS=OFF ${{ matrix.platform == 'macos-arm64' && '-DCMAKE_OSX_ARCHITECTURES=arm64' || '' }}
           build-type: ${{ matrix.build-type }}
 
       - name: Build godot-cpp MinGW
@@ -134,7 +134,7 @@ jobs:
           build-dir: ${{ github.workspace }}/build
           cc: ${{ matrix.cc }}
           cxx: ${{ matrix.cxx }}
-          configure-options: -G Ninja
+          configure-options: -G Ninja ${{ matrix.platform == 'macos-arm64' && '-DCMAKE_OSX_ARCHITECTURES=arm64' || '' }}
           build-type: ${{ matrix.build-type }}
 
       - name: Build with CMake MinGW
@@ -184,6 +184,56 @@ jobs:
           name: bin-macos-arm64-Release
           path: ${{ github.workspace }}/temp/arm64-release
 
+      - name: Fix individual binaries before lipo
+        run: |
+          # Function to fix a single binary
+          fix_binary() {
+            local dylib_path="$1"
+            local dylib_name=$(basename "$dylib_path")
+
+            if [ ! -f "$dylib_path" ]; then
+              echo "Binary not found: $dylib_path"
+              return 1
+            fi
+
+            echo "=== Fixing $dylib_name ==="
+
+            # Debug info before fix
+            echo "Before fix:"
+            otool -D "$dylib_path" | tail -n 1
+
+            # Fix install name to use @loader_path
+            local expected_id="@loader_path/$(basename "$dylib_path" | sed 's/darwin\.[^.]*\./darwin./')"
+            install_name_tool -id "$expected_id" "$dylib_path"
+
+            # Remove problematic rpaths
+            local build_rpath="/Users/runner/work/godot-openmpt/godot-openmpt/custom-godotcpp-build/bin"
+            if otool -l "$dylib_path" | grep -q "$build_rpath"; then
+              install_name_tool -delete_rpath "$build_rpath" "$dylib_path" 2>/dev/null || true
+            fi
+
+            # Fix any problematic dependencies
+            otool -L "$dylib_path" | tail -n +2 | awk '{print $1}' | while read dep; do
+              if [[ "$dep" == *"custom-godotcpp-build"* ]]; then
+                new_dep="@loader_path/$(basename "$dep")"
+                install_name_tool -change "$dep" "$new_dep" "$dylib_path" 2>/dev/null || true
+              fi
+            done
+
+            # Debug info after fix
+            echo "After fix:"
+            otool -D "$dylib_path" | tail -n 1
+            echo "Dependencies:"
+            otool -L "$dylib_path" | head -5
+            echo ""
+          }
+
+          # Fix all individual binaries
+          fix_binary "${{ github.workspace }}/temp/intel-debug/libgdmpt-darwin.debug.64.dylib"
+          fix_binary "${{ github.workspace }}/temp/arm64-debug/libgdmpt-darwin.debug.arm64.dylib"
+          fix_binary "${{ github.workspace }}/temp/intel-release/libgdmpt-darwin.release.64.dylib"
+          fix_binary "${{ github.workspace }}/temp/arm64-release/libgdmpt-darwin.release.arm64.dylib"
+
       - name: Create universal binaries with lipo
         run: |
           mkdir -p ${{ github.workspace }}/addons/godot-openmpt/bin
@@ -201,10 +251,17 @@ jobs:
             -output ${{ github.workspace }}/addons/godot-openmpt/bin/libgdmpt-darwin.release.universal.dylib
 
           # Verify the universal binaries
-          echo "Debug binary architectures:"
+          echo "=== Universal Debug Binary Info ==="
+          file ${{ github.workspace }}/addons/godot-openmpt/bin/libgdmpt-darwin.debug.universal.dylib
           lipo -info ${{ github.workspace }}/addons/godot-openmpt/bin/libgdmpt-darwin.debug.universal.dylib
-          echo "Release binary architectures:"
+          otool -D ${{ github.workspace }}/addons/godot-openmpt/bin/libgdmpt-darwin.debug.universal.dylib
+          otool -L ${{ github.workspace }}/addons/godot-openmpt/bin/libgdmpt-darwin.debug.universal.dylib | head -5
+
+          echo "=== Universal Release Binary Info ==="
+          file ${{ github.workspace }}/addons/godot-openmpt/bin/libgdmpt-darwin.release.universal.dylib
           lipo -info ${{ github.workspace }}/addons/godot-openmpt/bin/libgdmpt-darwin.release.universal.dylib
+          otool -D ${{ github.workspace }}/addons/godot-openmpt/bin/libgdmpt-darwin.release.universal.dylib
+          otool -L ${{ github.workspace }}/addons/godot-openmpt/bin/libgdmpt-darwin.release.universal.dylib | head -5
 
       - name: Upload universal macOS binaries
         uses: actions/upload-artifact@v4
